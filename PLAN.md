@@ -21,6 +21,9 @@ A pack leader should be able to:
 - See the signup list for each event.
 - See attendance totals.
 - See which fundraiser time slots still have room for families.
+- Create, edit, archive, and delete events.
+- Choose whether an event is a regular RSVP, campout RSVP, or fundraiser with time slots.
+- Configure event details, attendance questions, shift times, and per-shift family limits.
 - Export or copy the signup list later.
 
 ## Important First Decision
@@ -94,8 +97,10 @@ The organizer view will show:
 - Family names and attendance counts.
 - Families assigned to each fundraiser time slot.
 - Organizer tools to correct or remove a signup when needed.
+- Event management tools to create, edit, archive, or delete events.
+- Event settings for RSVP questions, campout day/overnight counts, and fundraiser shifts.
 
-This view will initially be a local prototype, not a secure administrative area.
+The local prototype may use sample events, but the production view must be protected by Cubmaster authentication.
 
 ## Data Model
 
@@ -144,13 +149,19 @@ Add fundraiser events with available 1 PM, 2 PM, and 3 PM slots. Let a family ch
 
 Add a public view that displays attendance totals, family names, and families assigned to each time slot. Add private edit and cancel links for families.
 
-### Milestone 5: Pack-Specific Content
+### Milestone 5: Cubmaster Event Management
+
+Add a Cubmaster-only dashboard where the Cubmaster can create, edit, archive, and delete events. The event editor will support regular RSVP events, campouts with daytime and overnight counts, and fundraisers with multiple time slots and configurable family limits.
+
+### Milestone 6: Pack-Specific Content
 
 Replace sample events with real pack information, colors, contact details, and fundraiser slot formats.
 
-### Milestone 6: Shared Online Version
+### Milestone 7: Shared Online Version
 
-Choose a backend, add secure family edit/cancel links and Cubmaster-only organizer authentication, move signup data to a shared database, test backups and privacy behavior, and deploy the site for Pack 44.
+Choose a backend, add secure family edit/cancel links and Cubmaster-only organizer authentication, move signup data to a shared database, test backups and privacy behavior, and deploy the site for Pack 44. Event management must be included before launch.
+
+The selected backend is Supabase. The initial database schema is in `supabase/schema.sql` and includes active/archived events, event types, fundraiser slots, family signups, and slot selections. Signup creation and family edit/cancel operations should use server-side functions so email addresses and private edit tokens are not exposed to the public browser.
 
 ## Privacy and Safety Requirements
 
@@ -175,6 +186,16 @@ Start with Milestones 1 and 2 as a local learning prototype, then immediately te
 The expected volume is small: even 20 events per year with 50 family signups per event would be only about 1,000 signup records per year, consisting mostly of short text fields. Storage costs and performance will not be a concern.
 
 The initial policy is to keep historical signup records rather than automatically deleting them. This preserves useful pack history and avoids a cleanup job that could accidentally remove needed information. The Cubmaster can correct or remove an individual record when there is a specific reason, and the retention policy can be revisited after the site has been used for a while.
+
+## Event Management Policy
+
+The Cubmaster should be able to manage the event calendar without changing code. Creating an event should include its title, date, time, location, description, and signup type. The available signup types are:
+
+- RSVP: adult and scout counts, with no attendance limit or waitlist.
+- Campout: separate daytime and overnight adult and scout counts.
+- Fundraiser: one or more selectable time slots, with a configurable maximum number of families per slot.
+
+Deleting an event should require confirmation. Archiving is preferred once an event has signups, so historical records remain available and a live event cannot disappear accidentally. Editing an event should warn the Cubmaster before changing or removing time slots that families have already selected.
 
 ## First Test Event
 
@@ -209,3 +230,16 @@ The adult and scout counts can be entered during the test. This sample contact s
 - Accent color: Walpole High Wolfpack orange
 - Contact: walpole.pack44.cubmaster@gmail.com
 - Organizer: Cubmaster only, for the initial release
+
+## Next Session Todo
+
+- Create a Supabase project for Pack 44.
+- Run `supabase/schema.sql` in the Supabase SQL Editor.
+- Verify the `events`, `event_slots`, `signups`, and `signup_slots` tables.
+- Enable email magic-link authentication for the Cubmaster.
+- Create the initial Cubmaster account.
+- Add secure server-side signup functions for creating, editing, and cancelling family signups.
+- Enforce fundraiser slot limits atomically so simultaneous signups cannot overbook a shift.
+- Add the local Supabase URL and publishable key through an ignored `.env` file.
+- Replace browser-only `localStorage` with the shared Supabase data layer.
+- Test the public roster, private family links, Cubmaster event management, archiving, and backups before launch.
