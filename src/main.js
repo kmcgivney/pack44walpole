@@ -25,6 +25,23 @@ const events = [
     type: 'RSVP',
     overnightDetails: true,
   },
+  {
+    id: 'rockys-fundraiser-2026',
+    title: 'Rocky\'s Ace Hardware Fundraiser',
+    date: 'Saturday, October 10, 2026',
+    dateLabel: 'OCT 10',
+    time: 'Time slots coming soon',
+    location: 'Rocky\'s Ace Hardware, Walpole, MA',
+    description: 'Help Pack 44 raise money at Rocky\'s Ace Hardware. Families can choose one or more shifts, and each shift can welcome multiple families.',
+    type: 'FUNDRAISER',
+    signupType: 'time-slots',
+    timeSlotFamilyLimit: 20,
+    timeSlots: [
+      { id: 'nine-to-ten', label: '9:00 AM - 10:00 AM', time: 'One-hour shift' },
+      { id: 'ten-to-eleven', label: '10:00 AM - 11:00 AM', time: 'One-hour shift' },
+      { id: 'eleven-to-twelve', label: '11:00 AM - 12:00 PM', time: 'One-hour shift' },
+    ],
+  },
 ];
 
 let selectedEventId = events[0].id;
@@ -71,6 +88,10 @@ function totals(eventId) {
     overnightScouts: result.overnightScouts + Number(signup.overnightScouts || 0),
     overnightAdults: result.overnightAdults + Number(signup.overnightAdults || 0),
   }), { families: 0, scouts: 0, adults: 0, overnightScouts: 0, overnightAdults: 0 });
+}
+
+function slotSignupCount(slotId) {
+  return signups.filter((signup) => signup.eventId === selectedEventId && (signup.timeSlotIds || []).includes(slotId)).length;
 }
 
 function escapeHtml(value = '') {
@@ -143,12 +164,17 @@ function render() {
                 <label>Overnight scouts <input name="overnightScouts" type="number" min="0" value="${editing?.overnightScouts ?? ''}" required /></label>
               </div>
               <p class="field-help">It is fine for some family members to stay overnight while others come just for the day.</p>
-            ` : `
-              <div class="form-grid">
-                <label>Adults <input name="adults" type="number" min="0" value="${editing?.adults ?? ''}" required /></label>
-                <label>Scouts <input name="scouts" type="number" min="0" value="${editing?.scouts ?? ''}" required /></label>
+            ` : event.signupType === 'time-slots' ? `
+              <p class="form-section-label">Choose one or more shifts</p>
+              <div class="time-slot-list">
+                ${event.timeSlots.map((slot) => `<label class="time-slot"><input type="checkbox" name="timeSlotIds" value="${escapeHtml(slot.id)}" ${editing?.timeSlotIds?.includes(slot.id) ? 'checked' : ''} /><span><strong>${escapeHtml(slot.label)}</strong><small>${escapeHtml(slot.time)} · ${slotSignupCount(slot.id)} of ${event.timeSlotFamilyLimit} families</small></span></label>`).join('')}
               </div>
-            `}
+              <p class="field-help">Each family may choose multiple shifts. Up to ${event.timeSlotFamilyLimit} families can claim each shift.</p>
+            ` : ''}
+            ${!event.overnightDetails ? `<div class="form-grid">
+              <label>${event.signupType === 'time-slots' ? 'Adults helping' : 'Adults'} <input name="adults" type="number" min="0" value="${editing?.adults ?? ''}" required /></label>
+              <label>${event.signupType === 'time-slots' ? 'Scouts helping' : 'Scouts'} <input name="scouts" type="number" min="0" value="${editing?.scouts ?? ''}" required /></label>
+            </div>` : ''}
             <label>Email for RSVP updates <input name="email" type="email" required value="${escapeHtml(editing?.email || '')}" placeholder="you@example.com" /></label>
             <label>Note <span class="optional">optional</span><textarea name="notes" rows="2" placeholder="Anything we should know?">${escapeHtml(editing?.notes || '')}</textarea></label>
             <button class="button button-primary" type="submit">${editing ? 'Save changes' : 'Add our family'} <span aria-hidden="true">→</span></button>
@@ -159,7 +185,7 @@ function render() {
       </section>
 
       <section class="roster section-inner">
-        <div class="roster-heading"><div><p class="eyebrow">${event.overnightDetails ? 'The campout roster' : 'The trail roster'}</p><h2>Who’s coming</h2></div><div class="total-pills"><span><b>${summary.scouts}</b> scouts</span><span><b>${summary.adults}</b> adults</span>${event.overnightDetails ? `<span><b>${summary.overnightScouts + summary.overnightAdults}</b> overnight</span>` : ''}</div></div>
+        <div class="roster-heading"><div><p class="eyebrow">${event.overnightDetails ? 'The campout roster' : event.signupType === 'time-slots' ? 'The fundraiser roster' : 'The trail roster'}</p><h2>Who’s coming</h2></div><div class="total-pills"><span><b>${summary.scouts}</b> scouts</span><span><b>${summary.adults}</b> adults</span>${event.overnightDetails ? `<span><b>${summary.overnightScouts + summary.overnightAdults}</b> overnight</span>` : ''}</div></div>
         <div class="roster-list">${renderRoster()}</div>
       </section>
     </main>
@@ -189,6 +215,7 @@ function handleSubmit(submitEvent) {
   submitEvent.preventDefault();
   const event = selectedEvent();
   const formData = new FormData(submitEvent.target);
+  const timeSlotIds = formData.getAll('timeSlotIds');
   const signup = {
     id: editingSignupId || crypto.randomUUID(),
     eventId: event.id,
@@ -201,14 +228,26 @@ function handleSubmit(submitEvent) {
     dayScouts: Number(formData.get('dayScouts') || 0),
     overnightAdults: Number(formData.get('overnightAdults') || 0),
     overnightScouts: Number(formData.get('overnightScouts') || 0),
+    timeSlotIds,
     notes: formData.get('notes').trim(),
   };
   const attendeeCount = event.overnightDetails
     ? signup.dayAdults + signup.dayScouts + signup.overnightAdults + signup.overnightScouts
     : signup.adults + signup.scouts;
-  if (attendeeCount === 0) {
+  if (attendeeCount === 0 || (event.signupType === 'time-slots' && timeSlotIds.length === 0)) {
+    if (event.signupType === 'time-slots' && timeSlotIds.length === 0) {
+      alert('Please choose at least one fundraiser shift.');
+      return;
+    }
     alert('Please enter at least one adult or scout.');
     return;
+  }
+  if (event.signupType === 'time-slots') {
+    const fullSlot = event.timeSlots.find((slot) => timeSlotIds.includes(slot.id) && slotSignupCount(slot.id) - (editingSignupId && (signups.find((item) => item.id === editingSignupId)?.timeSlotIds || []).includes(slot.id) ? 1 : 0) >= event.timeSlotFamilyLimit);
+    if (fullSlot) {
+      alert(`${fullSlot.label} is full. Please choose another shift.`);
+      return;
+    }
   }
   if (editingSignupId) {
     signups = signups.map((item) => item.id === editingSignupId ? signup : item);
@@ -222,6 +261,10 @@ function handleSubmit(submitEvent) {
 }
 
 function rosterAttendance(signup) {
+  if (selectedEvent().signupType === 'time-slots') {
+    const slotLabels = selectedEvent().timeSlots.filter((slot) => (signup.timeSlotIds || []).includes(slot.id)).map((slot) => slot.label);
+    return `${slotLabels.join(' · ')} · ${Number(signup.scouts || 0)} scout${Number(signup.scouts || 0) === 1 ? '' : 's'} · ${Number(signup.adults || 0)} adult${Number(signup.adults || 0) === 1 ? '' : 's'}`;
+  }
   if (selectedEvent().overnightDetails) {
     const dayCount = Number(signup.dayAdults || 0) + Number(signup.dayScouts || 0);
     const overnightCount = Number(signup.overnightAdults || 0) + Number(signup.overnightScouts || 0);

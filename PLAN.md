@@ -193,6 +193,15 @@ The first test signup will be:
 
 The adult and scout counts can be entered during the test. This sample contact should be removed or replaced before sharing the prototype outside the test group.
 
+## Additional Event
+
+- Event: Pack 44 fundraiser at Rocky's Ace Hardware
+- Date: October 10, 2026
+- Signup type: Scheduled time slots
+- Location: Rocky's Ace Hardware, Walpole, MA
+- Default capacity: 20 families per time slot
+- Shift times: 9:00-10:00 AM, 10:00-11:00 AM, and 11:00 AM-12:00 PM
+
 ## Pack 44 Identity
 
 - Pack: Pack 44 of Walpole, MA
