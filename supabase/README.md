@@ -3,7 +3,11 @@
 1. Create a Supabase project.
 2. Open the Supabase SQL Editor.
 3. Run `schema.sql`.
-4. Enable email magic-link authentication for the Cubmaster account.
-5. Add the project URL and publishable key to the app environment when we wire the frontend.
+4. Run `rpc.sql`.
+5. Run `seed.sql` to create the hike, fundraiser, campout, and fundraiser shifts.
+6. Enable email magic-link authentication for the Cubmaster account.
+7. Add the project URL and publishable key to the app environment when we wire the frontend.
 
-The schema keeps family email addresses and edit-token hashes out of the public roster view. Public family signups will be added through server-side functions in the next database step, where slot capacity can be checked atomically.
+The schema keeps family email addresses and edit-token hashes out of the public roster view. `rpc.sql` adds the public family signup API, private edit/cancel operations, and atomic fundraiser slot-capacity checks. It should be run only after `schema.sql`.
+
+`seed.sql` looks up the Cubmaster account by the Pack 44 contact email and is safe to rerun. It updates only the three initial events and their fundraiser shifts; it does not delete or modify signups.

@@ -1,9 +1,10 @@
 import './style.css';
 import { supabase, supabaseConfigured } from './supabase.js';
+import { loadPublicRoster, loadRemoteEvents } from './data.js';
 
 const STORAGE_KEY = 'pack44-signups';
 
-const events = [
+const fallbackEvents = [
   {
     id: 'fall-hike-2026',
     title: 'Pack 44 Fall Hike',
@@ -45,7 +46,10 @@ const events = [
   },
 ];
 
+let events = fallbackEvents;
 let selectedEventId = events[0].id;
+let remoteDataLoaded = false;
+const tokenStorageKey = 'pack44-edit-tokens';
 
 const sampleSignup = {
   id: 'kyle-test-signup',
@@ -80,6 +84,37 @@ function loadSignups() {
 
 function saveSignups() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(signups));
+}
+
+function loadEditTokens() {
+  try {
+    return JSON.parse(localStorage.getItem(tokenStorageKey) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function saveEditToken(signupId, token, email) {
+  const tokens = loadEditTokens();
+  tokens[signupId] = { token, email };
+  localStorage.setItem(tokenStorageKey, JSON.stringify(tokens));
+}
+
+async function loadRemoteRoster(eventId) {
+  const roster = await loadPublicRoster(eventId);
+  return roster.map((signup) => ({
+    id: signup.id,
+    eventId: signup.event_id,
+    familyName: signup.family_name,
+    adults: signup.adults,
+    scouts: signup.scouts,
+    dayAdults: signup.day_adults,
+    dayScouts: signup.day_scouts,
+    overnightAdults: signup.overnight_adults,
+    overnightScouts: signup.overnight_scouts,
+    timeSlotIds: signup.slot_ids || [],
+    email: loadEditTokens()[signup.id]?.email || '',
+  }));
 }
 
 function totals(eventId) {
@@ -195,7 +230,13 @@ function render() {
   `;
 
   document.querySelector('#signup-form').addEventListener('submit', handleSubmit);
-  document.querySelectorAll('[data-event]').forEach((button) => button.addEventListener('click', () => { selectedEventId = button.dataset.event; editingSignupId = null; render(); document.querySelector('#signup').scrollIntoView({ behavior: 'smooth' }); }));
+  document.querySelectorAll('[data-event]').forEach((button) => button.addEventListener('click', async () => {
+    selectedEventId = button.dataset.event;
+    editingSignupId = null;
+    if (remoteDataLoaded) signups = await loadRemoteRoster(selectedEventId);
+    render();
+    document.querySelector('#signup').scrollIntoView({ behavior: 'smooth' });
+  }));
   document.querySelector('#cancel-edit')?.addEventListener('click', () => { editingSignupId = null; render(); });
   document.querySelectorAll('[data-edit]').forEach((button) => button.addEventListener('click', () => { editingSignupId = button.dataset.edit; render(); document.querySelector('#signup').scrollIntoView({ behavior: 'smooth' }); }));
   document.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => cancelSignup(button.dataset.cancel)));
@@ -256,12 +297,12 @@ function renderRoster() {
     <article class="roster-row">
       <div class="avatar">${escapeHtml(signup.familyName.charAt(0).toUpperCase())}</div>
       <div class="roster-name"><strong>${escapeHtml(signup.familyName)}</strong><span>${rosterAttendance(signup)}</span></div>
-      <div class="roster-actions"><button class="small-button" data-edit="${escapeHtml(signup.id)}">Edit</button><button class="small-button danger" data-cancel="${escapeHtml(signup.id)}">Cancel</button></div>
+      ${!remoteDataLoaded || loadEditTokens()[signup.id] ? `<div class="roster-actions"><button class="small-button" data-edit="${escapeHtml(signup.id)}">Edit</button><button class="small-button danger" data-cancel="${escapeHtml(signup.id)}">Cancel</button></div>` : ''}
     </article>
   `).join('');
 }
 
-function handleSubmit(submitEvent) {
+async function handleSubmit(submitEvent) {
   submitEvent.preventDefault();
   const event = selectedEvent();
   const formData = new FormData(submitEvent.target);
@@ -299,6 +340,46 @@ function handleSubmit(submitEvent) {
       return;
     }
   }
+  if (remoteDataLoaded) {
+    const tokenRecord = editingSignupId ? loadEditTokens()[editingSignupId] : null;
+    const { data, error } = editingSignupId
+      ? await supabase.rpc('update_family_signup', {
+        p_edit_token: tokenRecord?.token,
+        p_family_name: signup.familyName,
+        p_email: signup.email,
+        p_adults: signup.adults,
+        p_scouts: signup.scouts,
+        p_day_adults: signup.dayAdults,
+        p_day_scouts: signup.dayScouts,
+        p_overnight_adults: signup.overnightAdults,
+        p_overnight_scouts: signup.overnightScouts,
+        p_notes: signup.notes,
+        p_slot_ids: signup.timeSlotIds,
+      })
+      : await supabase.rpc('create_family_signup', {
+        p_event_id: signup.eventId,
+        p_family_name: signup.familyName,
+        p_email: signup.email,
+        p_adults: signup.adults,
+        p_scouts: signup.scouts,
+        p_day_adults: signup.dayAdults,
+        p_day_scouts: signup.dayScouts,
+        p_overnight_adults: signup.overnightAdults,
+        p_overnight_scouts: signup.overnightScouts,
+        p_notes: signup.notes,
+        p_slot_ids: signup.timeSlotIds,
+      });
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    if (!editingSignupId && data?.signup_id && data?.edit_token) saveEditToken(data.signup_id, data.edit_token, signup.email);
+    signups = await loadRemoteRoster(event.id);
+    editingSignupId = null;
+    render();
+    document.querySelector('.roster').scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
   if (editingSignupId) {
     signups = signups.map((item) => item.id === editingSignupId ? signup : item);
   } else {
@@ -323,13 +404,40 @@ function rosterAttendance(signup) {
   return `${Number(signup.scouts || 0)} scout${Number(signup.scouts || 0) === 1 ? '' : 's'} · ${Number(signup.adults || 0)} adult${Number(signup.adults || 0) === 1 ? '' : 's'}`;
 }
 
-function cancelSignup(id) {
+async function cancelSignup(id) {
   const signup = signups.find((item) => item.id === id);
   if (!signup || !window.confirm(`Remove ${signup.familyName} from this RSVP?`)) return;
+  if (remoteDataLoaded) {
+    const tokenRecord = loadEditTokens()[id];
+    const { error } = await supabase.rpc('cancel_family_signup', { p_edit_token: tokenRecord?.token });
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    signups = await loadRemoteRoster(selectedEventId);
+    render();
+    return;
+  }
   signups = signups.filter((item) => item.id !== id);
   saveSignups();
   render();
 }
 
+async function initializeRemoteData() {
+  if (!supabase) return;
+  try {
+    const remoteEvents = await loadRemoteEvents();
+    if (!remoteEvents?.length) return;
+    events = remoteEvents;
+    if (!events.some((event) => event.id === selectedEventId)) selectedEventId = events[0].id;
+    signups = await loadRemoteRoster(selectedEventId);
+    remoteDataLoaded = true;
+    render();
+  } catch (error) {
+    console.error('Supabase data unavailable; keeping local preview.', error);
+  }
+}
+
 render();
 initializeAuth();
+initializeRemoteData();
