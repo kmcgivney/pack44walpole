@@ -1,4 +1,5 @@
 import './style.css';
+import { supabase, supabaseConfigured } from './supabase.js';
 
 const STORAGE_KEY = 'pack44-signups';
 
@@ -59,6 +60,7 @@ const sampleSignup = {
 
 let signups = loadSignups();
 let editingSignupId = null;
+let authSession = null;
 
 function selectedEvent() {
   return events.find((item) => item.id === selectedEventId) || events[0];
@@ -113,7 +115,7 @@ function render() {
           <span class="brand-mark">44</span>
           <span><strong>Pack 44</strong><small>Walpole, MA</small></span>
         </a>
-        <span class="header-note">Cub Scout families, together</span>
+        <div class="header-tools"><span class="header-note">Cub Scout families, together</span><div id="auth-status"></div></div>
       </div>
     </header>
 
@@ -197,6 +199,54 @@ function render() {
   document.querySelector('#cancel-edit')?.addEventListener('click', () => { editingSignupId = null; render(); });
   document.querySelectorAll('[data-edit]').forEach((button) => button.addEventListener('click', () => { editingSignupId = button.dataset.edit; render(); document.querySelector('#signup').scrollIntoView({ behavior: 'smooth' }); }));
   document.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => cancelSignup(button.dataset.cancel)));
+  renderAuthStatus();
+}
+
+function renderAuthStatus() {
+  const target = document.querySelector('#auth-status');
+  if (!target) return;
+  if (!supabaseConfigured) {
+    target.innerHTML = '<span class="auth-note">Local preview</span>';
+    return;
+  }
+  if (authSession?.user) {
+    target.innerHTML = `<span class="auth-note">Cubmaster signed in</span><button class="auth-button" id="sign-out" type="button">Sign out</button>`;
+    target.querySelector('#sign-out').addEventListener('click', async () => {
+      await supabase.auth.signOut();
+    });
+    return;
+  }
+  target.innerHTML = '<button class="auth-button" id="sign-in" type="button">Cubmaster sign in</button>';
+  target.querySelector('#sign-in').addEventListener('click', () => {
+    target.innerHTML = `<form class="auth-form" id="auth-form"><input type="email" name="email" required placeholder="Cubmaster email" aria-label="Cubmaster email" /><button class="auth-button" type="submit">Email me a link</button></form>`;
+    target.querySelector('#auth-form').addEventListener('submit', requestMagicLink);
+  });
+}
+
+async function requestMagicLink(submitEvent) {
+  submitEvent.preventDefault();
+  const email = new FormData(submitEvent.target).get('email').trim();
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.origin },
+  });
+  submitEvent.target.outerHTML = error
+    ? `<span class="auth-error">${escapeHtml(error.message)}</span>`
+    : '<span class="auth-note">Check your email for the sign-in link.</span>';
+}
+
+async function initializeAuth() {
+  if (!supabase) {
+    renderAuthStatus();
+    return;
+  }
+  const { data } = await supabase.auth.getSession();
+  authSession = data.session;
+  renderAuthStatus();
+  supabase.auth.onAuthStateChange((_event, session) => {
+    authSession = session;
+    renderAuthStatus();
+  });
 }
 
 function renderRoster() {
@@ -282,3 +332,4 @@ function cancelSignup(id) {
 }
 
 render();
+initializeAuth();
