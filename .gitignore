@@ -1,5 +1,6 @@
 node_modules/
 dist/
+/newsletter_archive/
 .env
 .env.*
 !.env.example

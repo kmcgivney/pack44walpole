@@ -6,6 +6,14 @@ const projectRoot = fileURLToPath(new URL('.', import.meta.url));
 
 export default defineConfig({
   base: './',
+  server: {
+    fs: {
+      deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/newsletter_archive/**'],
+    },
+    watch: {
+      ignored: ['**/newsletter_archive/**'],
+    },
+  },
   build: {
     rollupOptions: {
       input: {
