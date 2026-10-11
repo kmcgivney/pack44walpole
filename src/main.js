@@ -1,6 +1,6 @@
 import './style.css';
 import { supabase, supabaseConfigured } from './supabase.js';
-import { loadPublicRoster, loadRemoteEvents } from './data.js';
+import { loadFamilySignup, loadPublicRoster, loadPublicSummary, loadRemoteEvents } from './data.js';
 
 const STORAGE_KEY = 'pack44-signups';
 
@@ -47,8 +47,16 @@ const fallbackEvents = [
 ];
 
 let events = fallbackEvents;
-let selectedEventId = events[0].id;
+const requestedEventId = new URLSearchParams(window.location.search).get('event');
+const manageToken = new URLSearchParams(window.location.search).get('manage');
+const specificEventLink = Boolean(requestedEventId);
+let selectedEventId = requestedEventId || events[0].id;
 let remoteDataLoaded = false;
+let publicSummaries = {};
+let publicSummaryLoading = false;
+let remoteDataError = false;
+let remoteDataErrorMessage = '';
+let manageUrl = '';
 const tokenStorageKey = 'pack44-edit-tokens';
 
 const sampleSignup = {
@@ -118,6 +126,7 @@ async function loadRemoteRoster(eventId) {
 }
 
 function totals(eventId) {
+  if (remoteDataLoaded && publicSummaries[eventId]) return publicSummaries[eventId];
   return signups.filter((signup) => signup.eventId === eventId).reduce((result, signup) => ({
     families: result.families + 1,
     scouts: result.scouts + Number(signup.scouts || 0) + Number(signup.dayScouts || 0) + Number(signup.overnightScouts || 0),
@@ -128,6 +137,8 @@ function totals(eventId) {
 }
 
 function slotSignupCount(slotId) {
+  const summary = publicSummaries[selectedEventId];
+  if (remoteDataLoaded && summary) return summary.slots?.find((slot) => slot.id === slotId)?.family_count || 0;
   return signups.filter((signup) => signup.eventId === selectedEventId && (signup.timeSlotIds || []).includes(slotId)).length;
 }
 
@@ -141,6 +152,7 @@ function render() {
   const event = selectedEvent();
   const summary = totals(event.id);
   const editing = signups.find((signup) => signup.id === editingSignupId);
+  const publicEventView = specificEventLink && !authSession?.user;
   const root = document.querySelector('#app');
 
   root.innerHTML = `
@@ -155,6 +167,7 @@ function render() {
     </header>
 
     <main>
+      ${remoteDataError ? `<div class="data-warning section-inner">Shared signup data could not be loaded. This browser is not showing local test signups.${authSession?.user && remoteDataErrorMessage ? `<small>${escapeHtml(remoteDataErrorMessage)}</small>` : ''}</div>` : ''}
       <section class="hero section-inner">
         <div class="hero-copy">
           <p class="eyebrow"><span></span> Upcoming pack events</p>
@@ -167,9 +180,9 @@ function render() {
         </div>
       </section>
 
-      <section class="event-picker section-inner" aria-label="Choose an event">
+      ${(!specificEventLink && !manageToken) || authSession?.user ? `<section class="event-picker section-inner" aria-label="Choose an event">
         ${events.map((item) => `<button class="event-choice ${item.id === event.id ? 'selected' : ''}" data-event="${item.id}" type="button"><span>${escapeHtml(item.dateLabel)}</span><strong>${escapeHtml(item.title.replace('Pack 44 ', ''))}</strong><small>${escapeHtml(item.location)}</small></button>`).join('')}
-      </section>
+      </section>` : ''}
 
       <section class="event-layout section-inner" id="signup">
         <article class="event-card">
@@ -188,7 +201,7 @@ function render() {
         <section class="signup-panel">
           <div class="panel-heading">
             <div><p class="eyebrow orange">Family RSVP</p><h2>${editing ? 'Update your RSVP' : 'Will you join us?'}</h2></div>
-            <div class="attendance"><strong>${summary.families}</strong><span>families<br />coming</span></div>
+            <div class="attendance"><strong>${publicSummaryLoading ? '...' : summary.families}</strong><span>families<br />coming</span></div>
           </div>
           <form id="signup-form">
             <label>Family name <input name="familyName" required value="${escapeHtml(editing?.familyName || '')}" placeholder="The Smith family" /></label>
@@ -216,6 +229,7 @@ function render() {
             <label>Note <span class="optional">optional</span><textarea name="notes" rows="2" placeholder="Anything we should know?">${escapeHtml(editing?.notes || '')}</textarea></label>
             <button class="button button-primary" type="submit">${editing ? 'Save changes' : 'Add our family'} <span aria-hidden="true">→</span></button>
             ${editing ? '<button class="button button-quiet" id="cancel-edit" type="button">Cancel editing</button>' : ''}
+            ${manageUrl ? `<div class="manage-link"><strong>Save this private link</strong><span>Use it later to edit or cancel this RSVP.</span><a href="${escapeHtml(manageUrl)}">${escapeHtml(manageUrl)}</a></div>` : ''}
             <p class="privacy-note"><span aria-hidden="true">✦</span> Your email is only used for pack communications and is never shown publicly.</p>
           </form>
         </section>
@@ -223,17 +237,40 @@ function render() {
 
       <section class="roster section-inner">
         <div class="roster-heading"><div><p class="eyebrow">${event.overnightDetails ? 'The campout roster' : event.signupType === 'time-slots' ? 'The fundraiser roster' : 'The trail roster'}</p><h2>Who’s coming</h2></div><div class="total-pills"><span><b>${summary.scouts}</b> scouts</span><span><b>${summary.adults}</b> adults</span>${event.overnightDetails ? `<span><b>${summary.overnightScouts + summary.overnightAdults}</b> overnight</span>` : ''}</div></div>
-        <div class="roster-list">${renderRoster()}</div>
+        <div class="roster-list">${renderRoster(publicEventView)}</div>
+      </section>
+
+      <section class="about-section" id="about">
+        <div class="section-inner about-grid">
+          <div>
+            <p class="eyebrow orange">A note from Pack 44</p>
+            <h2>Built for families.<br /><em>Handled with care.</em></h2>
+            <p class="about-lead">Pack 44 Signups is managed by the Cubmaster for the families of Pack 44 in Walpole, Massachusetts.</p>
+            <a class="text-link" href="mailto:walpole.pack44.cubmaster@gmail.com">Contact the Cubmaster <span aria-hidden="true">→</span></a>
+          </div>
+          <div class="about-copy">
+            <div><h3>What we collect</h3><p>We collect a family name, contact email, attendance counts, selected fundraiser shifts, and optional notes so pack leaders can plan events.</p></div>
+            <div><h3>What stays private</h3><p>Email addresses and private manage links are never shown on the public event page. Families use an unguessable link to edit or cancel only their own signup.</p></div>
+            <div><h3>Who can manage the site</h3><p>Only the Cubmaster can see the full calendar, family contact details, and administrative tools. Families do not need to create accounts.</p></div>
+            <div><h3>How data is handled</h3><p>Signups are stored in Supabase, a hosted database service. Historical records are kept for pack planning, and the Cubmaster can correct or remove a record when needed.</p></div>
+          </div>
+        </div>
       </section>
     </main>
-    <footer class="site-footer"><div class="section-inner"><strong>Pack 44</strong><span>Walpole, Massachusetts</span><a href="mailto:walpole.pack44.cubmaster@gmail.com">walpole.pack44.cubmaster@gmail.com</a></div></footer>
+    <footer class="site-footer"><div class="section-inner"><strong>Pack 44</strong><span>Walpole, Massachusetts</span><a href="#about">About & privacy</a><a href="mailto:walpole.pack44.cubmaster@gmail.com">walpole.pack44.cubmaster@gmail.com</a></div></footer>
   `;
 
   document.querySelector('#signup-form').addEventListener('submit', handleSubmit);
   document.querySelectorAll('[data-event]').forEach((button) => button.addEventListener('click', async () => {
     selectedEventId = button.dataset.event;
     editingSignupId = null;
-    if (remoteDataLoaded) signups = await loadRemoteRoster(selectedEventId);
+    window.history.replaceState({}, '', `?event=${encodeURIComponent(selectedEventId)}`);
+    if (remoteDataLoaded) {
+      signups = authSession?.user
+        ? await loadRemoteRoster(selectedEventId)
+        : [];
+      if (!authSession?.user) publicSummaries[selectedEventId] = await loadPublicSummary(selectedEventId);
+    }
     render();
     document.querySelector('#signup').scrollIntoView({ behavior: 'smooth' });
   }));
@@ -290,8 +327,15 @@ async function initializeAuth() {
   });
 }
 
-function renderRoster() {
+function renderRoster(publicEventView = false) {
   const eventSignups = signups.filter((signup) => signup.eventId === selectedEventId);
+  if (publicEventView) {
+    const summary = totals(selectedEventId);
+    const slots = selectedEvent().signupType === 'time-slots'
+      ? `<div class="public-slot-summary">${selectedEvent().timeSlots.map((slot) => `<span><strong>${slotSignupCount(slot.id)}</strong> / ${selectedEvent().timeSlotFamilyLimit}<small>${escapeHtml(slot.label)}</small></span>`).join('')}</div>`
+      : '';
+    return `<div class="public-summary"><strong>${summary.families} ${summary.families === 1 ? 'family' : 'families'} signed up</strong><span>${summary.scouts} scouts · ${summary.adults} adults</span>${slots}</div>`;
+  }
   if (!eventSignups.length) return '<div class="empty-state">No families yet. Be the first to RSVP.</div>';
   return eventSignups.map((signup) => `
     <article class="roster-row">
@@ -373,8 +417,16 @@ async function handleSubmit(submitEvent) {
       alert(error.message);
       return;
     }
-    if (!editingSignupId && data?.signup_id && data?.edit_token) saveEditToken(data.signup_id, data.edit_token, signup.email);
-    signups = await loadRemoteRoster(event.id);
+    if (!editingSignupId && data?.signup_id && data?.edit_token) {
+      saveEditToken(data.signup_id, data.edit_token, signup.email);
+      manageUrl = `${window.location.origin}/?manage=${encodeURIComponent(data.edit_token)}`;
+    }
+    if (authSession?.user) {
+      signups = await loadRemoteRoster(event.id);
+    } else {
+      signups = [];
+      publicSummaries[event.id] = await loadPublicSummary(event.id);
+    }
     editingSignupId = null;
     render();
     document.querySelector('.roster').scrollIntoView({ behavior: 'smooth' });
@@ -426,15 +478,57 @@ async function cancelSignup(id) {
 async function initializeRemoteData() {
   if (!supabase) return;
   try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    authSession = sessionData.session;
     const remoteEvents = await loadRemoteEvents();
     if (!remoteEvents?.length) return;
     events = remoteEvents;
+    if (manageToken) {
+      const privateSignup = await loadFamilySignup(manageToken);
+      if (!privateSignup) throw new Error('This private signup link is invalid or expired.');
+      selectedEventId = privateSignup.event_id;
+      signups = [{
+        id: privateSignup.id,
+        eventId: privateSignup.event_id,
+        familyName: privateSignup.family_name,
+        email: privateSignup.email,
+        adults: privateSignup.adults,
+        scouts: privateSignup.scouts,
+        dayAdults: privateSignup.day_adults,
+        dayScouts: privateSignup.day_scouts,
+        overnightAdults: privateSignup.overnight_adults,
+        overnightScouts: privateSignup.overnight_scouts,
+        notes: privateSignup.notes,
+        timeSlotIds: privateSignup.slot_ids || [],
+      }];
+      saveEditToken(privateSignup.id, manageToken, privateSignup.email);
+      editingSignupId = privateSignup.id;
+      manageUrl = window.location.href;
+      remoteDataLoaded = true;
+      render();
+      return;
+    }
     if (!events.some((event) => event.id === selectedEventId)) selectedEventId = events[0].id;
-    signups = await loadRemoteRoster(selectedEventId);
+    if (authSession?.user) {
+      signups = await loadRemoteRoster(selectedEventId);
+    } else {
+      signups = [];
+      publicSummaryLoading = true;
+      render();
+      const summaries = await Promise.all(events.map(async (event) => [event.id, await loadPublicSummary(event.id)]));
+      publicSummaries = Object.fromEntries(summaries);
+      console.info('Loaded public event summaries', publicSummaries);
+      publicSummaryLoading = false;
+    }
     remoteDataLoaded = true;
     render();
   } catch (error) {
-    console.error('Supabase data unavailable; keeping local preview.', error);
+    remoteDataError = true;
+    remoteDataLoaded = false;
+    remoteDataErrorMessage = error?.message || String(error);
+    signups = [];
+    console.error('Supabase data unavailable.', error);
+    render();
   }
 }
 

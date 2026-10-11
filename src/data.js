@@ -13,13 +13,9 @@ function formatTime(startTime, endTime) {
 
 export async function loadRemoteEvents() {
   if (!supabase) return null;
-  const { data, error } = await supabase
-    .from('events')
-    .select('id, title, event_date, start_time, end_time, location, description, kind, event_slots(id, label, start_time, end_time, family_limit)')
-    .eq('is_archived', false)
-    .order('event_date');
+  const { data, error } = await supabase.rpc('get_active_events');
   if (error) throw error;
-  return data.map((event) => ({
+  return (data || []).map((event) => ({
     id: event.id,
     title: event.title,
     date: new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(`${event.event_date}T12:00:00`)),
@@ -45,4 +41,27 @@ export async function loadPublicRoster(eventId) {
   const { data, error } = await supabase.rpc('get_public_roster', { p_event_id: eventId });
   if (error) throw error;
   return data;
+}
+
+export async function loadPublicSummary(eventId) {
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc('get_public_event_summary', { p_event_id: eventId });
+  if (error) throw error;
+  const summary = typeof data === 'string' ? JSON.parse(data) : data;
+  return {
+    families: Number(summary?.families || 0),
+    scouts: Number(summary?.scouts || 0),
+    adults: Number(summary?.adults || 0),
+    overnight: Number(summary?.overnight || 0),
+    overnightScouts: 0,
+    overnightAdults: 0,
+    slots: Array.isArray(summary?.slots) ? summary.slots : [],
+  };
+}
+
+export async function loadFamilySignup(editToken) {
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc('get_family_signup', { p_edit_token: editToken });
+  if (error) throw error;
+  return data?.[0] || null;
 }

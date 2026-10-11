@@ -9,7 +9,8 @@ Create a practical website for Cub Scout Pack 44 of Walpole, Massachusetts. The 
 A family should be able to:
 
 - Open the website on a phone or computer.
-- See upcoming pack events.
+- Open a specific event link on a phone or computer.
+- See only the event represented by that link.
 - Read the date, time, location, and description for an event.
 - Submit one signup for the family by entering a parent or guardian name and email address.
 - Enter the number of adults and scouts attending.
@@ -25,6 +26,8 @@ A pack leader should be able to:
 - Choose whether an event is a regular RSVP, campout RSVP, or fundraiser with time slots.
 - Configure event details, attendance questions, shift times, and per-shift family limits.
 - Export or copy the signup list later.
+
+The Cubmaster is the only administrative user. Families do not create accounts. A family receives an event link for signing up and a separate private manage link for editing or cancelling its own signup.
 
 ## Important First Decision
 
@@ -60,9 +63,9 @@ When the prototype feels right, we can add:
 
 ## Proposed Pages and Views
 
-### 1. Upcoming Events
+### 1. Event Signup Page
 
-The home page will show event cards with:
+An event link will show only that event:
 
 - Event name.
 - Date and time.
@@ -70,7 +73,9 @@ The home page will show event cards with:
 - Short description.
 - Event type: RSVP or scheduled volunteer shifts.
 - Current attendance or remaining slot capacity.
-- A button to sign up.
+- A button or form to sign up.
+
+The public event page may show attendance totals and fundraiser slot availability, but it will not show the full family roster by default.
 
 ### 2. Signup Form
 
@@ -84,7 +89,7 @@ Every signup represents one family and will collect:
 
 For a regular event, this is a simple RSVP. For a fundraiser or other work event, the family will choose one or more available time slots. Each time slot can be claimed by multiple families until its configured maximum is reached. For example, the event can offer 1 PM, 2 PM, and 3 PM slots, with several families allowed in each slot.
 
-After submitting, the family will receive a private edit/cancel link. To avoid accounts and passwords, the link will be a long, unguessable token shown on the confirmation page and sent to the signup email. The database will store a hash of the token rather than the usable token itself. The public signup list will show family names, attendance counts, and selected time slots, but never email addresses.
+After submitting, the family will receive a private edit/cancel link. To avoid accounts and passwords, the link will be a long, unguessable token shown on the confirmation page and sent to the signup email. The database will store a hash of the token rather than the usable token itself. That link exposes only the family's own signup.
 
 The form should validate required fields and show a clear confirmation after submission.
 
@@ -100,7 +105,7 @@ The organizer view will show:
 - Event management tools to create, edit, archive, or delete events.
 - Event settings for RSVP questions, campout day/overnight counts, and fundraiser shifts.
 
-The local prototype may use sample events, but the production view must be protected by Cubmaster authentication.
+The production view must be protected by Cubmaster authentication. Only the Cubmaster can see the full event calendar, family roster details, email addresses, and management controls. The current prototype still shows sample events and rosters for local testing; that is a known limitation to remove before launch.
 
 ## Data Model
 
@@ -117,14 +122,15 @@ An **event** will contain:
 - `timeSlots` (optional list of scheduled shifts)
 
 A **signup** will contain:
-
 - `id`
 - `eventId`
 - `parentName`
 - `email`
 - `scoutCount`
 - `adultCount`
-- `timeSlotIds` (optional list, for scheduled events)
+- `dayScoutCount` and `dayAdultCount` (for campouts)
+- `overnightScoutCount` and `overnightAdultCount` (for campouts)
+- `timeSlotIds` (for fundraisers)
 - `notes` (optional)
 - `createdAt`
 - `editTokenHash` (hash of the private token for self-service changes)
@@ -169,7 +175,9 @@ Because this involves children and families:
 
 - Collect only information needed for event planning.
 - Do not collect scout birth dates, addresses, or other sensitive information.
-- Do not display family email addresses publicly; the public list may show family names and attendance information.
+- Do not display family email addresses publicly.
+- Public visitors should see only an event they were given a link to; they should not receive the full event calendar.
+- Public event pages may show aggregate attendance and slot availability, but not the complete family roster.
 - Add organizer authentication before using management tools with the whole pack.
 - Use private, unguessable edit/cancel links; rate-limit attempts and never expose the token in the public signup list.
 - Keep historical signup records by default; allow the Cubmaster to correct or remove records when needed.
@@ -233,13 +241,30 @@ The adult and scout counts can be entered during the test. This sample contact s
 
 ## Next Session Todo
 
-- Create a Supabase project for Pack 44.
-- Run `supabase/schema.sql` in the Supabase SQL Editor.
-- Verify the `events`, `event_slots`, `signups`, and `signup_slots` tables.
-- Enable email magic-link authentication for the Cubmaster.
-- Create the initial Cubmaster account.
-- Add secure server-side signup functions for creating, editing, and cancelling family signups.
-- Enforce fundraiser slot limits atomically so simultaneous signups cannot overbook a shift.
-- Add the local Supabase URL and publishable key through an ignored `.env` file.
-- Replace browser-only `localStorage` with the shared Supabase data layer.
-- Test the public roster, private family links, Cubmaster event management, archiving, and backups before launch.
+### Complete
+
+- [x] Create a Supabase project for Pack 44.
+- [x] Run `supabase/schema.sql` in the Supabase SQL Editor.
+- [x] Verify the `events`, `event_slots`, `signups`, and `signup_slots` tables.
+- [x] Enable email authentication for the Cubmaster.
+- [x] Create the initial Cubmaster account.
+- [x] Add secure RPC functions for creating, editing, and cancelling family signups.
+- [x] Enforce fundraiser slot limits atomically.
+- [x] Add the local Supabase URL and publishable key through an ignored `.env` file.
+- [x] Load active events and public roster data from Supabase.
+- [x] Add the Pack 44 About and privacy section.
+- [x] Verify Cubmaster access to detailed signup records.
+- [x] Verify anonymous access is limited to aggregate attendance and slot summaries.
+- [x] Verify event-specific links such as `/?event=<event-id>`.
+- [x] Add and verify private family manage links for editing a signup.
+
+### Remaining
+
+- [x] Run and verify `supabase/rpc.sql` and `supabase/seed.sql` together after the latest fixes.
+- [x] Replace the prototype's all-events selector with event-specific public URLs.
+- [x] Replace the public full roster with aggregate attendance and slot availability.
+- [x] Add private family manage URLs that expose only that family's signup.
+- [ ] Send family manage links by email.
+- [ ] Build the Cubmaster dashboard for creating, editing, archiving, and deleting events.
+- [ ] Add Cubmaster-only access to full rosters and email addresses.
+- [ ] Test capacity limits, private links, archiving, backups, and failure cases before launch.

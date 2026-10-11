@@ -3,6 +3,38 @@
 
 create extension if not exists pgcrypto;
 
+create or replace function public.get_active_events()
+returns json
+language sql
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select coalesce(json_agg(json_build_object(
+    'id', e.id,
+    'title', e.title,
+    'event_date', e.event_date,
+    'start_time', e.start_time,
+    'end_time', e.end_time,
+    'location', e.location,
+    'description', e.description,
+    'kind', e.kind,
+    'event_slots', coalesce((
+      select json_agg(json_build_object(
+        'id', slot.id,
+        'label', slot.label,
+        'start_time', slot.start_time,
+        'end_time', slot.end_time,
+        'family_limit', slot.family_limit
+      ) order by slot.start_time)
+      from public.event_slots slot
+      where slot.event_id = e.id
+    ), '[]'::json)
+  ) order by e.event_date), '[]'::json)
+  from public.events e
+  where not e.is_archived;
+$$;
+
 create or replace function public.get_public_roster(p_event_id uuid)
 returns table (
   id uuid,
@@ -20,6 +52,7 @@ returns table (
 language sql
 security definer
 set search_path = public
+set row_security = off
 as $$
   select
     s.id,
@@ -36,7 +69,78 @@ as $$
   from public.signups s
   join public.events e on e.id = s.event_id
   left join public.signup_slots ss on ss.signup_id = s.id
-  where s.event_id = p_event_id and s.cancelled_at is null and not e.is_archived
+  where s.event_id = p_event_id
+    and s.cancelled_at is null
+    and not e.is_archived
+    and e.created_by = auth.uid()
+  group by s.id;
+$$;
+
+create or replace function public.get_public_event_summary(p_event_id uuid)
+returns json
+language sql
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select json_build_object(
+    'families', count(distinct s.id),
+    'scouts', coalesce(sum(s.scouts + s.day_scouts + s.overnight_scouts), 0),
+    'adults', coalesce(sum(s.adults + s.day_adults + s.overnight_adults), 0),
+    'overnight', coalesce(sum(s.overnight_adults + s.overnight_scouts), 0),
+    'slots', coalesce((
+      select json_agg(json_build_object(
+        'id', slot.id,
+        'family_count', (
+          select count(*) from public.signup_slots selected
+          join public.signups slot_signup on slot_signup.id = selected.signup_id
+          where selected.slot_id = slot.id and slot_signup.cancelled_at is null
+        )
+      )) from public.event_slots slot where slot.event_id = p_event_id
+    ), '[]'::json)
+  )
+  from public.signups s
+  join public.events e on e.id = s.event_id
+  where s.event_id = p_event_id and s.cancelled_at is null and not e.is_archived;
+$$;
+
+create or replace function public.get_family_signup(p_edit_token text)
+returns table (
+  id uuid,
+  event_id uuid,
+  family_name text,
+  email text,
+  adults integer,
+  scouts integer,
+  day_adults integer,
+  day_scouts integer,
+  overnight_adults integer,
+  overnight_scouts integer,
+  notes text,
+  slot_ids uuid[]
+)
+language sql
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select
+    s.id,
+    s.event_id,
+    s.family_name,
+    s.email,
+    s.adults,
+    s.scouts,
+    s.day_adults,
+    s.day_scouts,
+    s.overnight_adults,
+    s.overnight_scouts,
+    s.notes,
+    coalesce(array_agg(ss.slot_id) filter (where ss.slot_id is not null), '{}')
+  from public.signups s
+  left join public.signup_slots ss on ss.signup_id = s.id
+  where s.edit_token_hash = encode(extensions.digest(p_edit_token, 'sha256'), 'hex')
+    and s.cancelled_at is null
   group by s.id;
 $$;
 
@@ -61,7 +165,7 @@ as $$
 declare
   target_event public.events%rowtype;
   signup_id uuid;
-  edit_token text := encode(gen_random_bytes(32), 'hex');
+  edit_token text := encode(extensions.gen_random_bytes(32), 'hex');
   selected_slot uuid;
   selected_count integer;
   slot_limit integer;
@@ -118,7 +222,7 @@ begin
   ) values (
     p_event_id, trim(p_family_name), lower(trim(p_email)), coalesce(p_adults, 0), coalesce(p_scouts, 0),
     coalesce(p_day_adults, 0), coalesce(p_day_scouts, 0), coalesce(p_overnight_adults, 0),
-    coalesce(p_overnight_scouts, 0), coalesce(p_notes, ''), encode(digest(edit_token, 'sha256'), 'hex')
+    coalesce(p_overnight_scouts, 0), coalesce(p_notes, ''), encode(extensions.digest(edit_token, 'sha256'), 'hex')
   ) returning id into signup_id;
 
   if cardinality(coalesce(p_slot_ids, '{}')) > 0 then
@@ -156,7 +260,7 @@ declare
 begin
   select * into existing
   from public.signups
-  where edit_token_hash = encode(digest(p_edit_token, 'sha256'), 'hex')
+  where edit_token_hash = encode(extensions.digest(p_edit_token, 'sha256'), 'hex')
     and cancelled_at is null
   for update;
 
@@ -215,13 +319,17 @@ as $$
 begin
   update public.signups
   set cancelled_at = now(), updated_at = now()
-  where edit_token_hash = encode(digest(p_edit_token, 'sha256'), 'hex')
+  where edit_token_hash = encode(extensions.digest(p_edit_token, 'sha256'), 'hex')
     and cancelled_at is null;
   return found;
 end;
 $$;
 
 grant execute on function public.get_public_roster(uuid) to anon, authenticated;
+revoke execute on function public.get_public_roster(uuid) from anon;
+grant execute on function public.get_active_events() to anon, authenticated;
+grant execute on function public.get_public_event_summary(uuid) to anon, authenticated;
+grant execute on function public.get_family_signup(text) to anon, authenticated;
 grant execute on function public.create_family_signup(uuid, text, text, integer, integer, integer, integer, integer, integer, text, uuid[]) to anon, authenticated;
 grant execute on function public.update_family_signup(text, text, text, integer, integer, integer, integer, integer, integer, text, uuid[]) to anon, authenticated;
 grant execute on function public.cancel_family_signup(text) to anon, authenticated;
