@@ -158,7 +158,7 @@ function render() {
   root.innerHTML = `
     <header class="site-header">
       <div class="header-inner">
-        <a class="brand" href="/" aria-label="Pack 44 home">
+        <a class="brand" href="../" aria-label="Pack 44 home">
           <span class="brand-mark">44</span>
           <span><strong>Pack 44</strong><small>Walpole, MA</small></span>
         </a>
@@ -306,7 +306,7 @@ async function requestMagicLink(submitEvent) {
   const email = new FormData(submitEvent.target).get('email').trim();
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: window.location.origin },
+    options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}` },
   });
   submitEvent.target.outerHTML = error
     ? `<span class="auth-error">${escapeHtml(error.message)}</span>`
@@ -419,7 +419,7 @@ async function handleSubmit(submitEvent) {
     }
     if (!editingSignupId && data?.signup_id && data?.edit_token) {
       saveEditToken(data.signup_id, data.edit_token, signup.email);
-      manageUrl = `${window.location.origin}/?manage=${encodeURIComponent(data.edit_token)}`;
+      manageUrl = `${window.location.origin}${window.location.pathname}?manage=${encodeURIComponent(data.edit_token)}`;
     }
     if (authSession?.user) {
       signups = await loadRemoteRoster(event.id);

@@ -239,7 +239,11 @@ The adult and scout counts can be entered during the test. This sample contact s
 - Contact: walpole.pack44.cubmaster@gmail.com
 - Organizer: Cubmaster only, for the initial release
 
-## Next Session Todo
+## Signup Backlog
+
+This checklist tracks signup implementation and launch readiness. The milestones above describe the original build sequence; this is the current working backlog.
+
+Site-wide work for the home page and newsletters is tracked in `SITE_BACKLOG.md`.
 
 ### Complete
 
@@ -255,7 +259,7 @@ The adult and scout counts can be entered during the test. This sample contact s
 - [x] Add the Pack 44 About and privacy section.
 - [x] Verify Cubmaster access to detailed signup records.
 - [x] Verify anonymous access is limited to aggregate attendance and slot summaries.
-- [x] Verify event-specific links such as `/?event=<event-id>`.
+- [x] Verify event-specific links such as `/signups/?event=<event-id>`.
 - [x] Add and verify private family manage links for editing a signup.
 
 ### Remaining
@@ -264,6 +268,9 @@ The adult and scout counts can be entered during the test. This sample contact s
 - [x] Replace the prototype's all-events selector with event-specific public URLs.
 - [x] Replace the public full roster with aggregate attendance and slot availability.
 - [x] Add private family manage URLs that expose only that family's signup.
+- [x] Move the signup app to `/signups/` and preserve private manage links and authentication return paths.
+- [ ] Deploy the multi-page site through GitHub Pages and connect `pack44walpole.org`.
+- [ ] Remove local test family data and sample signup records before inviting families to use the live site.
 - [ ] Send family manage links by email.
 - [ ] Build the Cubmaster dashboard for creating, editing, archiving, and deleting events.
 - [ ] Add Cubmaster-only access to full rosters and email addresses.
