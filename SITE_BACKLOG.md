@@ -14,6 +14,7 @@ Site-wide work for the home page and sections outside the signup app is tracked 
 - [x] Choose no-account RSVP for the MVP; keep parent account approval for protected newsletter access.
 - [x] Keep full signup rosters and family details Cubmaster-only for the MVP. Public event pages may show aggregate attendance and slot totals; consider broader parent visibility after the MVP.
 - [ ] Approve the newsletter onboarding procedure before enabling parent accounts: verify against the existing pack membership list or direct confirmation, invite by email yourself, allow access to approved newsletters only, and revoke access yourself when needed.
+- [ ] Customize Supabase's invitation and sign-in link email templates so they clearly identify Pack 44 of Walpole, explain that the Cubmaster approved the recipient for the private newsletter archive, and give a clear sign-in action. Review sender name/address and configure a Pack-controlled sending address if needed.
 - [ ] Decide how to handle Supabase's approximately 7-day inactivity pause risk: review current plan limits and choose an appropriate plan/hosting arrangement before relying on the project for live signups.
 - [ ] Keep a second copy of the original newsletter PDFs somewhere separate from Supabase; the local `newsletter_archive/` folder is intentionally excluded from Git and the public build.
 - [ ] Choose a repeatable newsletter authoring workflow and keep original image assets together with the editable source document before exporting each issue to PDF.

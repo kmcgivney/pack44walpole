@@ -167,10 +167,12 @@ create policy "Cubmaster can delete newsletters"
 
 grant select on public.newsletter_members to authenticated;
 revoke insert, update, delete on public.newsletter_members from anon, authenticated;
+grant select, insert, update on public.newsletter_members to service_role;
 grant select on public.newsletter_issues to authenticated;
 grant insert, update, delete on public.newsletter_issues to authenticated;
 grant select on public.newsletter_access_audit to authenticated;
 revoke insert, update, delete on public.newsletter_access_audit from anon, authenticated;
+grant insert on public.newsletter_access_audit to service_role;
 
 create or replace function public.audit_newsletter_member_change()
 returns trigger

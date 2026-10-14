@@ -51,8 +51,9 @@ function renderCubmasterTools() {
     <h3>Approve a parent</h3>
     <form id="parent-invite" class="newsletter-form invite-form">
       <label>Parent email<input name="email" type="email" autocomplete="email" required placeholder="parent@example.com" /></label>
-      <button class="button button-secondary" type="submit">Approve and send sign-in email</button>
+      <button class="button button-secondary" type="submit">Approve parent access</button>
     </form>
+    <p class="field-help">A new account receives an invitation email. An existing account gets access immediately; they can refresh if already signed in or request a sign-in link from the newsletter page.</p>
   </section>`;
 }
 

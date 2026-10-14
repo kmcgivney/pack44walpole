@@ -65,7 +65,6 @@ deno.serve(async (request) => {
 
   let parentUser = usersData.users.find((user) => user.email?.toLowerCase() === email);
   let invitationSent = false;
-  let deliveryError: string | null = null;
 
   if (!parentUser) {
     const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
@@ -110,20 +109,11 @@ deno.serve(async (request) => {
     if (auditError) return jsonResponse(500, { error: 'Access was approved, but the audit record could not be written.' });
   }
 
-  if (!invitationSent) {
-    const deliveryClient = createClient(supabaseUrl, anonKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    const { error } = await deliveryClient.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: false, emailRedirectTo: `${siteUrl.replace(/\/$/, '')}/newsletters/` },
-    });
-    if (error) deliveryError = 'Access was approved, but the sign-in email could not be sent. Ask the parent to request a sign-in link from the newsletter page.';
-  }
-
   return jsonResponse(200, {
     approved: true,
     invitationSent,
-    message: deliveryError || (invitationSent ? 'Parent approved and invitation sent.' : 'Parent access approved and a sign-in link sent.'),
+    message: invitationSent
+      ? 'Parent approved and invitation sent.'
+      : 'Parent access approved. If they are already signed in, have them refresh the newsletter page; otherwise they can request a sign-in link there.',
   });
 });
