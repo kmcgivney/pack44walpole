@@ -1,6 +1,7 @@
 node_modules/
 dist/
 /newsletter_archive/
+supabase/.temp/
 .env
 .env.*
 !.env.example

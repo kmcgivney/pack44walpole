@@ -269,7 +269,8 @@ Site-wide work for the home page and newsletters is tracked in `SITE_BACKLOG.md`
 - [x] Replace the public full roster with aggregate attendance and slot availability.
 - [x] Add private family manage URLs that expose only that family's signup.
 - [x] Move the signup app to `/signups/` and preserve private manage links and authentication return paths.
-- [ ] Deploy the multi-page site through GitHub Pages and connect `pack44walpole.org`.
+- [x] Deploy the multi-page site through GitHub Pages using the Vite production build.
+- [x] Connect `pack44walpole.org` to GitHub Pages and enable Enforce HTTPS.
 - [ ] Remove local test family data and sample signup records before inviting families to use the live site.
 - [ ] Send family manage links by email.
 - [ ] Build the Cubmaster dashboard for creating, editing, archiving, and deleting events.

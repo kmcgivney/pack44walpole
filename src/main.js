@@ -57,6 +57,7 @@ let publicSummaryLoading = false;
 let remoteDataError = false;
 let remoteDataErrorMessage = '';
 let manageUrl = '';
+let isCubmasterSession = false;
 const tokenStorageKey = 'pack44-edit-tokens';
 
 const sampleSignup = {
@@ -152,7 +153,7 @@ function render() {
   const event = selectedEvent();
   const summary = totals(event.id);
   const editing = signups.find((signup) => signup.id === editingSignupId);
-  const publicEventView = specificEventLink && !authSession?.user;
+  const publicEventView = !isCubmasterSession && !manageToken;
   const root = document.querySelector('#app');
 
   root.innerHTML = `
@@ -180,7 +181,7 @@ function render() {
         </div>
       </section>
 
-      ${(!specificEventLink && !manageToken) || authSession?.user ? `<section class="event-picker section-inner" aria-label="Choose an event">
+      ${(!specificEventLink && !manageToken) || isCubmasterSession ? `<section class="event-picker section-inner" aria-label="Choose an event">
         ${events.map((item) => `<button class="event-choice ${item.id === event.id ? 'selected' : ''}" data-event="${item.id}" type="button"><span>${escapeHtml(item.dateLabel)}</span><strong>${escapeHtml(item.title.replace('Pack 44 ', ''))}</strong><small>${escapeHtml(item.location)}</small></button>`).join('')}
       </section>` : ''}
 
@@ -266,10 +267,10 @@ function render() {
     editingSignupId = null;
     window.history.replaceState({}, '', `?event=${encodeURIComponent(selectedEventId)}`);
     if (remoteDataLoaded) {
-      signups = authSession?.user
+      signups = isCubmasterSession
         ? await loadRemoteRoster(selectedEventId)
         : [];
-      if (!authSession?.user) publicSummaries[selectedEventId] = await loadPublicSummary(selectedEventId);
+      if (!isCubmasterSession) publicSummaries[selectedEventId] = await loadPublicSummary(selectedEventId);
     }
     render();
     document.querySelector('#signup').scrollIntoView({ behavior: 'smooth' });
@@ -288,7 +289,7 @@ function renderAuthStatus() {
     return;
   }
   if (authSession?.user) {
-    target.innerHTML = `<span class="auth-note">Cubmaster signed in</span><button class="auth-button" id="sign-out" type="button">Sign out</button>`;
+    target.innerHTML = `<span class="auth-note">${isCubmasterSession ? 'Cubmaster signed in' : 'Account signed in'}</span><button class="auth-button" id="sign-out" type="button">Sign out</button>`;
     target.querySelector('#sign-out').addEventListener('click', async () => {
       await supabase.auth.signOut();
     });
@@ -306,7 +307,7 @@ async function requestMagicLink(submitEvent) {
   const email = new FormData(submitEvent.target).get('email').trim();
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}` },
+    options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}${window.location.pathname}` },
   });
   submitEvent.target.outerHTML = error
     ? `<span class="auth-error">${escapeHtml(error.message)}</span>`
@@ -320,11 +321,25 @@ async function initializeAuth() {
   }
   const { data } = await supabase.auth.getSession();
   authSession = data.session;
+  await refreshCubmasterRole();
   renderAuthStatus();
   supabase.auth.onAuthStateChange((_event, session) => {
     authSession = session;
-    renderAuthStatus();
+    window.setTimeout(async () => {
+      await refreshCubmasterRole();
+      if (remoteDataLoaded) {
+        signups = isCubmasterSession ? await loadRemoteRoster(selectedEventId) : [];
+      }
+      render();
+    }, 0);
   });
+}
+
+async function refreshCubmasterRole() {
+  isCubmasterSession = false;
+  if (!authSession?.user || !supabase) return;
+  const { data, error } = await supabase.rpc('is_newsletter_cubmaster');
+  isCubmasterSession = !error && data === true;
 }
 
 function renderRoster(publicEventView = false) {
@@ -421,7 +436,7 @@ async function handleSubmit(submitEvent) {
       saveEditToken(data.signup_id, data.edit_token, signup.email);
       manageUrl = `${window.location.origin}${window.location.pathname}?manage=${encodeURIComponent(data.edit_token)}`;
     }
-    if (authSession?.user) {
+    if (isCubmasterSession) {
       signups = await loadRemoteRoster(event.id);
     } else {
       signups = [];
@@ -480,6 +495,7 @@ async function initializeRemoteData() {
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     authSession = sessionData.session;
+    await refreshCubmasterRole();
     const remoteEvents = await loadRemoteEvents();
     if (!remoteEvents?.length) return;
     events = remoteEvents;
@@ -509,7 +525,7 @@ async function initializeRemoteData() {
       return;
     }
     if (!events.some((event) => event.id === selectedEventId)) selectedEventId = events[0].id;
-    if (authSession?.user) {
+    if (isCubmasterSession) {
       signups = await loadRemoteRoster(selectedEventId);
     } else {
       signups = [];
