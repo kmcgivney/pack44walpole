@@ -1,5 +1,18 @@
 const PACK_TIME_ZONE = 'America/New_York';
 
+function dateInPackTimeZone(date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PACK_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+export function filterUpcomingIcsEvents(events, now = new Date()) {
+  const today = dateInPackTimeZone(now);
+  return events.filter((event) => (event.endDate || event.date) >= today);
+}
+
 function splitContentLine(line) {
   let quoted = false;
   let separator = -1;

@@ -1,4 +1,4 @@
-import { parseIcs } from './ics.js';
+import { filterUpcomingIcsEvents, parseIcs } from './ics.js';
 
 const FEED_URL = 'https://api.scouting.org/advancements/events/calendar/46471';
 
@@ -234,6 +234,10 @@ export async function renderEventAdmin(root, { supabase, onEventsChanged }) {
   }
 
   function renderPreview() {
+    if (!feedEvents.length) {
+      preview.innerHTML = '<p class="ics-review-note">No upcoming calendar events were found. Past items are omitted.</p>';
+      return;
+    }
     const eventByUid = new Map(allEvents.filter((event) => event.source_uid).map((event) => [event.source_uid, event]));
     preview.innerHTML = `<div class="ics-review-note">Review every proposed change. New imported events are created archived. Existing event type, signup slots, archive state, and family choices are never changed by the importer. Canceled feed items are never applied automatically.</div>
       <div class="ics-review-list">${feedEvents.map((item, index) => {
@@ -303,10 +307,13 @@ export async function renderEventAdmin(root, { supabase, onEventsChanged }) {
       if (error) throw error;
       const calendarText = typeof data === 'string' ? data : data?.ics;
       if (!calendarText) throw new Error('Calendar proxy returned an empty response.');
-      feedEvents = parseIcs(calendarText);
-      if (!feedEvents.length) throw new Error('No valid events were found in the ICS feed.');
+      const parsedEvents = parseIcs(calendarText);
+      if (!parsedEvents.length) throw new Error('No valid events were found in the ICS feed.');
+      feedEvents = filterUpcomingIcsEvents(parsedEvents);
       renderPreview();
-      say(`Loaded ${feedEvents.length} calendar item${feedEvents.length === 1 ? '' : 's'} for review.`);
+      say(feedEvents.length
+        ? `Loaded ${feedEvents.length} upcoming calendar item${feedEvents.length === 1 ? '' : 's'} for review. Past items were omitted.`
+        : 'No upcoming calendar events were found. Past items were omitted.');
     } catch (error) {
       preview.textContent = 'Calendar preview could not be loaded.';
       say(error.message || 'Calendar preview could not be loaded.', true);

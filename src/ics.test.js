@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseIcs } from './ics.js';
+import { filterUpcomingIcsEvents, parseIcs } from './ics.js';
 
 test('parses folded content lines and ICS-escaped text', () => {
   const [event] = parseIcs([
@@ -43,4 +43,16 @@ test('handles DST offsets for America/New_York', () => {
   const [event] = parseIcs('BEGIN:VEVENT\nUID:dst-1\nDTSTART;TZID=America/New_York:20261101T013000\nEND:VEVENT');
   assert.equal(event.date, '2026-11-01');
   assert.equal(event.startTime, '01:30:00');
+});
+
+test('calendar preview filtering omits past events but keeps today and ongoing events', () => {
+  const now = new Date('2026-11-22T17:00:00Z');
+  const events = [
+    { uid: 'past', date: '2026-11-21', endDate: '2026-11-21' },
+    { uid: 'today', date: '2026-11-22', endDate: '2026-11-22' },
+    { uid: 'ongoing', date: '2026-11-20', endDate: '2026-11-23' },
+    { uid: 'future', date: '2026-11-23', endDate: '2026-11-23' },
+  ];
+
+  assert.deepEqual(filterUpcomingIcsEvents(events, now).map((event) => event.uid), ['today', 'ongoing', 'future']);
 });
