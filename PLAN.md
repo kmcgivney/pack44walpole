@@ -271,8 +271,11 @@ Site-wide work for the home page and newsletters is tracked in `SITE_BACKLOG.md`
 - [x] Move the signup app to `/signups/` and preserve private manage links and authentication return paths.
 - [x] Deploy the multi-page site through GitHub Pages using the Vite production build.
 - [x] Connect `pack44walpole.org` to GitHub Pages and enable Enforce HTTPS.
+- [x] Implement the Cubmaster event manager UI for create, edit, archive, and restore, with signup-sensitive controls locked when signup records exist.
+- [x] Implement server-proxied scouting.org ICS preview/import with UID matching, explicit per-event review and confirmation, archived-by-default new events, and cancellation handling that never archives automatically.
+- [x] Add ICS parsing tests for folded lines, escaped text, timezone/UTC conversion, all-day dates, DST, and cancellations.
 - [ ] Remove local test family data and sample signup records before inviting families to use the live site.
 - [ ] Send family manage links by email.
-- [ ] Build the Cubmaster dashboard for creating, editing, archiving, and deleting events.
+- [ ] Apply and verify `supabase/event-management.sql` (including authenticated table ACL grants) and deploy `supabase/functions/scouting-calendar` in the intended Supabase project; verify the Cubmaster role and event ownership, then test role/RLS denial for newsletter parents and anonymous users before treating event management as production-ready. Local 403 diagnosis found the migration omitted the required ACL grants; no hosted database has been changed or verified here.
 - [ ] Add Cubmaster-only access to full rosters and email addresses.
 - [ ] Test capacity limits, private links, archiving, backups, and failure cases before launch.

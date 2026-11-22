@@ -1,6 +1,7 @@
 import './style.css';
 import { supabase, supabaseConfigured } from './supabase.js';
 import { loadFamilySignup, loadPublicRoster, loadPublicSummary, loadRemoteEvents } from './data.js';
+import { renderEventAdmin } from './event-admin.js';
 
 const STORAGE_KEY = 'pack44-signups';
 
@@ -150,11 +151,21 @@ function escapeHtml(value = '') {
 }
 
 function render() {
+  const root = document.querySelector('#app');
+  if (remoteDataLoaded && events.length === 0 && !manageToken) {
+    root.innerHTML = `
+      <header class="site-header"><div class="header-inner"><a class="brand" href="../" aria-label="Pack 44 home"><span class="brand-mark">44</span><span><strong>Pack 44</strong><small>Walpole, MA</small></span></a><div class="header-tools"><span class="header-note">Pack 44 family signups</span><div id="auth-status"></div></div></div></header>
+      ${isCubmasterSession ? '<div id="event-admin-root"></div>' : '<main class="section-inner no-events"><h1>No active events</h1><p>Check back later for Pack 44 event signups.</p></main>'}
+      <footer class="site-footer"><div class="section-inner"><strong>Pack 44</strong><span>Walpole, Massachusetts</span><a href="mailto:walpole.pack44.cubmaster@gmail.com">Contact the Cubmaster</a></div></footer>`;
+    renderAuthStatus();
+    const emptyStateAdmin = document.querySelector('#event-admin-root');
+    if (emptyStateAdmin && supabase) mountEventAdmin(emptyStateAdmin);
+    return;
+  }
   const event = selectedEvent();
   const summary = totals(event.id);
   const editing = signups.find((signup) => signup.id === editingSignupId);
   const publicEventView = !isCubmasterSession && !manageToken;
-  const root = document.querySelector('#app');
 
   root.innerHTML = `
     <header class="site-header">
@@ -184,6 +195,8 @@ function render() {
       ${(!specificEventLink && !manageToken) || isCubmasterSession ? `<section class="event-picker section-inner" aria-label="Choose an event">
         ${events.map((item) => `<button class="event-choice ${item.id === event.id ? 'selected' : ''}" data-event="${item.id}" type="button"><span>${escapeHtml(item.dateLabel)}</span><strong>${escapeHtml(item.title.replace('Pack 44 ', ''))}</strong><small>${escapeHtml(item.location)}</small></button>`).join('')}
       </section>` : ''}
+
+      ${isCubmasterSession && !manageToken ? '<div id="event-admin-root"></div>' : ''}
 
       <section class="event-layout section-inner" id="signup">
         <article class="event-card">
@@ -279,6 +292,23 @@ function render() {
   document.querySelectorAll('[data-edit]').forEach((button) => button.addEventListener('click', () => { editingSignupId = button.dataset.edit; render(); document.querySelector('#signup').scrollIntoView({ behavior: 'smooth' }); }));
   document.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => cancelSignup(button.dataset.cancel)));
   renderAuthStatus();
+  const adminRoot = document.querySelector('#event-admin-root');
+  if (adminRoot && supabase) mountEventAdmin(adminRoot);
+}
+
+function mountEventAdmin(root) {
+  renderEventAdmin(root, {
+    supabase,
+    onEventsChanged: async () => {
+      const refreshedEvents = await loadRemoteEvents();
+      if (refreshedEvents) {
+        events = refreshedEvents;
+        if (events.length && !events.some((item) => item.id === selectedEventId)) selectedEventId = events[0].id;
+        signups = events.length ? await loadRemoteRoster(selectedEventId) : [];
+        render();
+      }
+    },
+  });
 }
 
 function renderAuthStatus() {
@@ -497,8 +527,15 @@ async function initializeRemoteData() {
     authSession = sessionData.session;
     await refreshCubmasterRole();
     const remoteEvents = await loadRemoteEvents();
-    if (!remoteEvents?.length) return;
+    if (!remoteEvents) return;
     events = remoteEvents;
+    if (!events.length) {
+      if (manageToken) return;
+      remoteDataLoaded = true;
+      signups = [];
+      render();
+      return;
+    }
     if (manageToken) {
       const privateSignup = await loadFamilySignup(manageToken);
       if (!privateSignup) throw new Error('This private signup link is invalid or expired.');

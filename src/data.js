@@ -15,25 +15,31 @@ export async function loadRemoteEvents() {
   if (!supabase) return null;
   const { data, error } = await supabase.rpc('get_active_events');
   if (error) throw error;
-  return (data || []).map((event) => ({
-    id: event.id,
-    title: event.title,
-    date: new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(`${event.event_date}T12:00:00`)),
-    dateLabel: formatDateLabel(event.event_date),
-    time: formatTime(event.start_time, event.end_time),
-    location: event.location,
-    description: event.description,
-    type: event.kind === 'fundraiser' ? 'FUNDRAISER' : 'RSVP',
-    signupType: event.kind === 'fundraiser' ? 'time-slots' : undefined,
-    overnightDetails: event.kind === 'campout',
-    timeSlotFamilyLimit: event.kind === 'fundraiser' ? 20 : undefined,
-    timeSlots: (event.event_slots || []).map((slot) => ({
-      id: slot.id,
-      label: slot.label,
-      time: formatTime(slot.start_time, slot.end_time),
-      familyLimit: slot.family_limit,
-    })),
-  }));
+  const formatLongDate = (date) => new Intl.DateTimeFormat('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  }).format(new Date(`${date}T12:00:00`));
+  return (data || []).map((event) => {
+    const endDate = event.end_date && event.end_date !== event.event_date ? event.end_date : null;
+    return {
+      id: event.id,
+      title: event.title,
+      date: endDate ? `${formatLongDate(event.event_date)} – ${formatLongDate(endDate)}` : formatLongDate(event.event_date),
+      dateLabel: formatDateLabel(event.event_date),
+      time: event.is_all_day ? 'All day' : formatTime(event.start_time, event.end_time),
+      location: event.location,
+      description: event.description,
+      type: event.kind === 'fundraiser' ? 'FUNDRAISER' : 'RSVP',
+      signupType: event.kind === 'fundraiser' ? 'time-slots' : undefined,
+      overnightDetails: event.kind === 'campout',
+      timeSlotFamilyLimit: event.kind === 'fundraiser' ? 20 : undefined,
+      timeSlots: (event.event_slots || []).map((slot) => ({
+        id: slot.id,
+        label: slot.label,
+        time: formatTime(slot.start_time, slot.end_time),
+        familyLimit: slot.family_limit,
+      })),
+    };
+  });
 }
 
 export async function loadPublicRoster(eventId) {

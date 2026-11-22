@@ -12,6 +12,31 @@ The schema keeps family email addresses and edit-token hashes out of the public 
 
 `seed.sql` looks up the Cubmaster account by the Pack 44 contact email and is safe to rerun. It updates only the three initial events and their fundraiser shifts; it does not delete or modify signups.
 
+## Cubmaster event management and scouting.org calendar import
+
+The signup page shows event management tools only after `is_newsletter_cubmaster()` confirms the signed-in user is the active Cubmaster. Database RLS independently enforces the same role and event ownership; the public signup API remains aggregate-only. Family signup creation/edit/cancel operations are unchanged.
+
+To install this feature:
+
+1. Verify the Cubmaster Auth user and `newsletter_members` role/status first. Apply `event-management.sql` in the Supabase SQL Editor only after `schema.sql`, `rpc.sql`, and `newsletters.sql`. This adds nullable unique source-UID tracking, all-day and multi-day event fields, an updated aggregate-safe active-event RPC, tightens event/event-slot write policies, and explicitly grants the authenticated role only the table/column privileges used by the manager. RLS still limits those operations to the active Cubmaster and events they own. Do not execute it against production until reviewed and approved by the project operator.
+2. Deploy the server-side ICS proxy from the repository root with `supabase functions deploy scouting-calendar`. The Edge Function uses the authenticated user's JWT to verify `is_newsletter_cubmaster()` before fetching the fixed scouting.org feed. Supabase supplies its URL and anon key; no service-role key is required or included in browser code.
+3. Verify with a Cubmaster account that event create/edit/archive/restore works, an imported event is initially archived, the preview shows proposed field changes, and only explicitly selected and confirmed actions are applied. Confirm an update preserves signup type, time slots, archive state, and signup records.
+4. Verify with an authenticated newsletter parent and an anonymous browser that event writes and the ICS proxy are denied, while public active-event details and aggregate signup summaries continue to work. A parent account is not an event administrator.
+
+If the manager reports `permission denied for table events` (HTTP 403 / SQLSTATE
+42501), that is a PostgreSQL table-ACL error, not an RLS denial: RLS policy
+failures typically produce no visible rows or an RLS policy error. `event-management.sql`
+now includes the narrow grants required for event reads/inserts/updates, slot
+reads/writes, and signup ID/event-ID counts. If that migration was already run
+before these grants were added, re-run the updated migration or apply just those
+three `GRANT` statements in the intended non-production project. Separately
+verify that the signed-in user is an active `cubmaster` in `newsletter_members`,
+that `is_newsletter_cubmaster()` returns true for that session, and that
+`events.created_by` matches that user's Auth UUID. Missing/wrong role or owner
+is an RLS/auth issue and must not be fixed by granting broader access.
+
+The organizer can create/edit RSVP, campout, or fundraiser events. Event type and shift changes are locked when signup records exist, preserving family slot choices. Archiving preserves signups; restoring is deliberate. ICS import runs through the server-side proxy rather than a browser cross-origin fetch. The importer tracks the feed's stable `UID`: new events are created archived and are not selected, while updates change only title, date, time, location, and description. Each proposed update is previewed with old/new values and requires explicit selection plus confirmation. A source cancellation never archives automatically; the Cubmaster must explicitly select and confirm archival. No import operation deletes events or signup data.
+
 ## Private newsletter access
 
 The public site does not contain newsletter PDFs. Parent access is through Supabase Auth email links and a private Storage bucket. Event RSVPs remain no-account, and the migration hardens signup management policies so parent accounts cannot manage events or see signup rosters.

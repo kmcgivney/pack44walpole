@@ -24,6 +24,7 @@ Site-wide work for the home page and sections outside the signup app is tracked 
 - [ ] After committee feedback, decide whether to retain no-account RSVPs or require parent accounts for signups. Keep the current no-account RSVP model until a decision is made.
 - [ ] Investigate Google Workspace and Google Groups for Pack email: compare a simple parent mailing list with a Collaborative Inbox, including setup, moderation, reply behavior, domain requirements, and costs before deciding whether to adopt it.
 - [ ] Explore automating event updates from the Pack calendar on advancements.scouting.org to this site. First investigate supported calendar feeds or APIs, then decide how imported events should be reviewed and kept in sync.
+- [ ] After functionality testing, decide whether past events should remain visible to everyone or be hidden from the public event list / shown only to the Cubmaster. Keep past events visible for now to support testing and confirmation.
 
 ## Current Parent Onboarding Flow (MVP)
 
