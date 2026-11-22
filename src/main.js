@@ -163,7 +163,7 @@ function render() {
           <span class="brand-mark">44</span>
           <span><strong>Pack 44</strong><small>Walpole, MA</small></span>
         </a>
-        <div class="header-tools"><span class="header-note">Cub Scout families, together</span><div id="auth-status"></div></div>
+        <div class="header-tools"><span class="header-note">Pack 44 family signups</span><div id="auth-status"></div></div>
       </div>
     </header>
 
@@ -172,9 +172,9 @@ function render() {
       <section class="hero section-inner">
         <div class="hero-copy">
           <p class="eyebrow"><span></span> Upcoming pack events</p>
-          <h1>Make room for<br /><em>adventure.</em></h1>
-          <p class="hero-text">Let us know which Pack 44 gathering your family will join.</p>
-          <a class="text-link" href="#signup">RSVP below <span aria-hidden="true">↓</span></a>
+          <h1>Pack 44<br /><em>Events</em></h1>
+          <p class="hero-text">View event details and submit an RSVP for your family.</p>
+          <a class="text-link" href="#signup">Event signup <span aria-hidden="true">↓</span></a>
         </div>
         <div class="hero-badge" aria-label="Pack 44 event badge">
           <span>${escapeHtml(event.dateLabel.split(' ')[0])}</span><strong>${escapeHtml(event.dateLabel.split(' ')[1])}</strong><small>2026</small>
@@ -244,15 +244,15 @@ function render() {
       <section class="about-section" id="about">
         <div class="section-inner about-grid">
           <div>
-            <p class="eyebrow orange">A note from Pack 44</p>
-            <h2>Built for families.<br /><em>Handled with care.</em></h2>
-            <p class="about-lead">Pack 44 Signups is managed by the Cubmaster for the families of Pack 44 in Walpole, Massachusetts.</p>
+            <p class="eyebrow orange">Pack 44 information</p>
+            <h2>Signup and<br /><em>privacy</em></h2>
+            <p class="about-lead">This site provides event signups and approved newsletters for Pack 44 families in Walpole, Massachusetts. It is managed by the Cubmaster.</p>
             <a class="text-link" href="mailto:walpole.pack44.cubmaster@gmail.com">Contact the Cubmaster <span aria-hidden="true">→</span></a>
           </div>
           <div class="about-copy">
             <div><h3>What we collect</h3><p>We collect a family name, contact email, attendance counts, selected fundraiser shifts, and optional notes so pack leaders can plan events.</p></div>
             <div><h3>What stays private</h3><p>Email addresses and private manage links are never shown on the public event page. Families use an unguessable link to edit or cancel only their own signup.</p></div>
-            <div><h3>Who can manage the site</h3><p>Only the Cubmaster can see the full calendar, family contact details, and administrative tools. Families do not need to create accounts.</p></div>
+            <div><h3>Who can access what</h3><p>Event RSVPs do not require accounts. The full signup roster is Cubmaster-only. Newsletter access requires Cubmaster approval.</p></div>
             <div><h3>How data is handled</h3><p>Signups are stored in Supabase, a hosted database service. Historical records are kept for pack planning, and the Cubmaster can correct or remove a record when needed.</p></div>
           </div>
         </div>

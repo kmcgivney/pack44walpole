@@ -28,3 +28,12 @@ To activate the newsletter feature:
 6. Test Cubmaster sign-in, invite one parent test account, confirm that parent can see only published newsletter issues, then revoke the test account and confirm access is denied. Do not upload the existing archive until each issue has been approved for parent release.
 
 The newsletter page is `/newsletters/`. The Cubmaster can approve/revoke parent accounts and upload/unpublish approved PDFs there. Parent sign-in does not create accounts; only the Cubmaster invitation function grants newsletter membership. Signed PDF links expire after five minutes. Revoking membership blocks new issue listing and link creation, but an already-created signed URL can remain valid until it expires.
+
+### Customize hosted Auth emails
+
+Hosted Supabase Auth does not automatically load templates from this repository. The repository files are the version-controlled source; copy their contents into the hosted project:
+
+- Open **Authentication → Email Templates → Invite user**. Set the subject from `email-templates/invite-subject.txt` and the body from `email-templates/invite.html`.
+- Open **Authentication → Email Templates → Magic Link**. Set the subject from `email-templates/magic-link-subject.txt` and the body from `email-templates/magic-link.html`.
+- Save each template and send a test email to verify the Pack 44 wording, link destination, and layout.
+- Set the sender name to `Pack 44 Walpole` in the project's Auth SMTP/email settings. A Pack-controlled sender address requires configuring custom SMTP and the corresponding domain authentication records; otherwise, keep the provider's verified sender address.
